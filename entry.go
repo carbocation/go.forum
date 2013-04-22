@@ -1,3 +1,9 @@
+/*
+Entry is the fundamental unit of a threaded discussion. An entry can represent 
+a forum, a post, or a comment, depending on how it is annotated. There is nothing 
+fundamentally distinct about these things, and their similarities (including 
+hierarchical nesting) are abundant. 
+*/
 package forum
 
 import (
@@ -16,21 +22,11 @@ type Entry struct {
 	Url      string    //Used if the post is just a link
 	Created  time.Time "Time at which the post was created."
 	AuthorId int64     "ID of the author of the post"
-	Forum    bool      `schema:"-"` //Is this Entry actually a forum?
+	Forum    bool      `schema:"-"` //Is this Entry actually a forum instead?
 
 	//These are not stored in the DB and are just generated fields
 	AuthorHandle string //Name of the author
-}
-
-//Note: why not just manage what is real and what is not through methods?
-//The 'get' methods would populate the view-type methods automatically
-//or leave them blank if irrelevant. The 'set' methods would store the 
-//essential / non-derived fields and ignore the others. That way you don't
-//have to juggle two view types
-type EntryView struct {
-	Entry
-	Points   int64
-	HasVoted bool
+	Points       int64  //Number of points the post has
 }
 
 // Retrieves all entries that are descendants of the ancestral entry, including the ancestral entry itself
