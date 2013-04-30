@@ -17,7 +17,7 @@ FROM entry_closures closure
 JOIN entry e ON e.id = closure.descendant
 JOIN account a ON a.id=e.author_id
 WHERE closure.ancestor = $1`,
-	DescendantClosureTable: `select * 
+	DescendantClosureTable: `select ancestor, descendant, depth 
 from entry_closures
 where descendant in (
 select descendant
@@ -28,8 +28,7 @@ and ancestor in (
 select descendant
 from entry_closures
 where ancestor=$1
-)
-and depth = 1`,
+)`,
 	DepthOneDescendantEntries: `SELECT e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle
 FROM entry_closures closure
 JOIN entry e ON e.id = closure.descendant
@@ -37,10 +36,15 @@ JOIN account a ON a.id=e.author_id
 WHERE 1=1
 AND closure.ancestor = $1
 AND (closure.depth=1 OR closure.depth=0)`,
-	DepthOneClosureTable: `select * 
+	DepthOneClosureTable: `select ancestor, descendant, depth 
 from entry_closures
-where ancestor=$1
-and depth=1`,
+where 1=1
+AND descendant in (
+	select descendant
+	from entry_closures
+	where ancestor=$1
+	and (depth<2)
+)`,
 	OneEntry: `SELECT e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle
 FROM entry e
 JOIN account a ON a.id=e.author_id
