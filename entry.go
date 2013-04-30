@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"errors"
 	"time"
+	"fmt"
 
 	"github.com/carbocation/go.util/datatypes/closuretable"
 )
@@ -158,17 +159,23 @@ func getEntries(root int64, flag string) (entries map[int64]Entry, err error) {
 //Returns a closure table of IDs that are descendants of a given ID (or the ID itself)
 func ClosureTable(id int64) (ct *closuretable.ClosureTable, err error) {
 	ct, err = getClosureTable(id, "AllDescendants")
+	if err != nil {
+		err = errors.New("forum: Error in AllDescendants: "+err.Error()+" ID was " + fmt.Sprintf("%d", id))
+	}
 	return
 }
 
 //Returns a closure table keeping only IDs that are direct descendants of a given ID (or the ID itself)
 func DepthOneClosureTable(id int64) (ct *closuretable.ClosureTable, err error) {
 	ct, err = getClosureTable(id, "DepthOneDescendants")
+	if err != nil {
+		err = errors.New("forum: Error in DepthOneDescendants: "+err.Error())
+	}
 	return
 }
 
 func getClosureTable(id int64, flag string) (ct *closuretable.ClosureTable, err error) {
-	ct = closuretable.New(id)
+	ct = new(closuretable.ClosureTable)
 
 	var stmt *sql.Stmt
 
@@ -191,20 +198,17 @@ func getClosureTable(id int64, flag string) (ct *closuretable.ClosureTable, err 
 	}
 
 	//Populate the closuretable
+	rel := new(closuretable.Relationship)
 	for rows.Next() {
-		var ancestor, descendant int64
-		var depth int
-		err = rows.Scan(&ancestor, &descendant, &depth)
+		err = rows.Scan(&rel.Ancestor, &rel.Descendant, &rel.Depth)
 		if err != nil {
-			//fmt.Printf("Rowscan error: %s", err)
+			//fmt.Printf("Rowscan error: %s\n", err)
 			return
 		}
-
-		err = ct.AddChild(closuretable.Child{Parent: ancestor, Child: descendant})
-
-		//err = ct.AddRelationship(closuretable.Relationship{Ancestor: ancestor, Descendant: descendant, Depth: depth})
+		
+		err = ct.AddRelationship(*rel)
 		if err != nil {
-			//fmt.Fprintf(w, "Error: %s", err)
+			//fmt.Printf("AddRelationship error: %s\n", err)
 			return
 		}
 	}
