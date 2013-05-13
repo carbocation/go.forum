@@ -14,10 +14,15 @@ var queries = struct {
 	VoteUpsert                string //Upsert a vote
 	FindVote                  string //Retrieve a vote by userId and entryId
 }{
-	DescendantEntries: `SELECT e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle
+	DescendantEntries: `SELECT e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle, extract(epoch from (now()-e.created)) seconds, COALESCE(v.upvotes, 0), COALESCE(v.downvotes, 0)
 FROM entry_closures closure
 JOIN entry e ON e.id = closure.descendant
 JOIN account a ON a.id=e.author_id
+LEFT JOIN (
+	SELECT entry_id, SUM(upvote::int) upvotes, SUM(downvote::int) downvotes 
+	FROM vote
+	GROUP BY entry_id
+) v ON v.entry_id=e.id
 WHERE closure.ancestor = $1`,
 	DescendantClosureTable: `select ancestor, descendant, depth 
 from entry_closures
@@ -31,10 +36,15 @@ select descendant
 from entry_closures
 where ancestor=$1
 )`,
-	DepthOneDescendantEntries: `SELECT e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle
+	DepthOneDescendantEntries: `SELECT e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle, extract(epoch from (now()-e.created)) seconds, COALESCE(v.upvotes, 0), COALESCE(v.downvotes, 0)
 FROM entry_closures closure
 JOIN entry e ON e.id = closure.descendant
 JOIN account a ON a.id=e.author_id
+LEFT JOIN (
+	SELECT entry_id, SUM(upvote::int) upvotes, SUM(downvote::int) downvotes 
+	FROM vote
+	GROUP BY entry_id
+) v ON v.entry_id=e.id
 WHERE 1=1
 AND closure.ancestor = $1
 AND (closure.depth=1 OR closure.depth=0)`,
@@ -47,9 +57,14 @@ AND descendant in (
 	where ancestor=$1
 	and (depth<2)
 )`,
-	OneEntry: `SELECT e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle
+	OneEntry: `SELECT e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle, extract(epoch from (now()-e.created)) seconds, COALESCE(v.upvotes, 0), COALESCE(v.downvotes, 0)
 FROM entry e
 JOIN account a ON a.id=e.author_id
+LEFT JOIN (
+	SELECT entry_id, SUM(upvote::int) upvotes, SUM(downvote::int) downvotes 
+	FROM vote
+	GROUP BY entry_id
+) v ON v.entry_id=e.id
 WHERE 1=1
 AND e.id=$1
 `,

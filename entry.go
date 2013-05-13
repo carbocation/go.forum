@@ -1,21 +1,21 @@
 /*
-Entry is the fundamental unit of a threaded discussion. An entry can represent 
-a forum, a post, or a comment, depending on how it is annotated. There is nothing 
-fundamentally distinct about these things, and their similarities (including 
-hierarchical nesting) are abundant. 
+Entry is the fundamental unit of a threaded discussion. An entry can represent
+a forum, a post, or a comment, depending on how it is annotated. There is nothing
+fundamentally distinct about these things, and their similarities (including
+hierarchical nesting) are abundant.
 */
 package forum
 
 import (
 	"database/sql"
 	"errors"
-	"time"
 	"fmt"
+	"time"
 
 	"github.com/carbocation/go.util/datatypes/closuretable"
 )
 
-// Put ModifiedBy, ModifiedAuthor in a separate table. A post can only be 
+// Put ModifiedBy, ModifiedAuthor in a separate table. A post can only be
 // created once but modified an infinite number of times.
 type Entry struct {
 	Id       int64     "The ID of the post"
@@ -27,11 +27,13 @@ type Entry struct {
 	Forum    bool      `schema:"-"` //Is this Entry actually a forum instead?
 
 	//These are not stored in the DB and are just generated fields
-	AuthorHandle string //Name of the author
-	Points       int64  //Number of points the post has
+	AuthorHandle string  //Name of the author
+	Seconds      float64 //Seconds since creation
+	Upvotes      int64
+	Downvotes    int64
 }
 
-// Stores an entry to the database and correctly builds its ancestry based 
+// Stores an entry to the database and correctly builds its ancestry based
 // on its parent's ID.
 func (e *Entry) Persist(parentId int64) error {
 	//Wrap in a transaction
@@ -44,25 +46,25 @@ func (e *Entry) Persist(parentId int64) error {
 	}
 	defer EntryCreateStmt.Close()
 
-	//Note: because pq handles LastInsertId oddly (or not at all?), instead of 
-	//calling .Exec() then .LastInsertId, we prepare a statement that ends in 
-	//`RETURNING id` and we .QueryRow().Select() the result  
+	//Note: because pq handles LastInsertId oddly (or not at all?), instead of
+	//calling .Exec() then .LastInsertId, we prepare a statement that ends in
+	//`RETURNING id` and we .QueryRow().Select() the result
 	err = EntryCreateStmt.QueryRow(e.Title, e.Body, e.Url, e.AuthorId).Scan(&e.Id)
 	if err != nil {
 		tx.Rollback()
 		return errors.New("Error: your username or email address was already found in the database. Please choose differently.")
 	}
-	
+
 	EntryClosureTableCreateStmt, err := tx.Prepare(queries.EntryClosureTableCreate)
 	if err != nil {
 		tx.Rollback()
 		// return err
-		return errors.New("Error: We had a database problem trying to create ancestry information.") 
+		return errors.New("Error: We had a database problem trying to create ancestry information.")
 	}
 	defer EntryClosureTableCreateStmt.Close()
-	
+
 	_, err = EntryClosureTableCreateStmt.Exec(e.Id, parentId)
-	if err != nil{
+	if err != nil {
 		tx.Rollback()
 		return errors.New("Error: We couldn't save the relationship between your comment and its parent comment.")
 	}
@@ -84,7 +86,7 @@ func OneEntry(id int64) (*Entry, error) {
 	defer stmt.Close()
 
 	var body, url sql.NullString
-	err = stmt.QueryRow(id).Scan(&e.Id, &e.Title, &body, &url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle)
+	err = stmt.QueryRow(id).Scan(&e.Id, &e.Title, &body, &url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle, &e.Seconds, &e.Upvotes, &e.Downvotes)
 	if err != nil {
 		e = new(Entry)
 		return e, err
@@ -138,7 +140,7 @@ func getEntries(root int64, flag string) (entries map[int64]Entry, err error) {
 	for rows.Next() {
 		var e Entry
 		var body, url sql.NullString
-		err = rows.Scan(&e.Id, &e.Title, &body, &url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle)
+		err = rows.Scan(&e.Id, &e.Title, &body, &url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle, &e.Seconds, &e.Upvotes, &e.Downvotes)
 		if err != nil {
 			return
 		}
@@ -160,7 +162,7 @@ func getEntries(root int64, flag string) (entries map[int64]Entry, err error) {
 func ClosureTable(id int64) (ct *closuretable.ClosureTable, err error) {
 	ct, err = getClosureTable(id, "AllDescendants")
 	if err != nil {
-		err = errors.New("forum: Error in AllDescendants: "+err.Error()+" ID was " + fmt.Sprintf("%d", id))
+		err = errors.New("forum: Error in AllDescendants: " + err.Error() + " ID was " + fmt.Sprintf("%d", id))
 	}
 	return
 }
@@ -169,7 +171,7 @@ func ClosureTable(id int64) (ct *closuretable.ClosureTable, err error) {
 func DepthOneClosureTable(id int64) (ct *closuretable.ClosureTable, err error) {
 	ct, err = getClosureTable(id, "DepthOneDescendants")
 	if err != nil {
-		err = errors.New("forum: Error in DepthOneDescendants: "+err.Error())
+		err = errors.New("forum: Error in DepthOneDescendants: " + err.Error())
 	}
 	return
 }
@@ -205,7 +207,7 @@ func getClosureTable(id int64, flag string) (ct *closuretable.ClosureTable, err 
 			//fmt.Printf("Rowscan error: %s\n", err)
 			return
 		}
-		
+
 		err = ct.AddRelationship(*rel)
 		if err != nil {
 			//fmt.Printf("AddRelationship error: %s\n", err)
