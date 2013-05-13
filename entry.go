@@ -74,6 +74,10 @@ func (e *Entry) Persist(parentId int64) error {
 	return nil
 }
 
+func (e Entry) Points() int64 {
+	return e.Upvotes - e.Downvotes
+}
+
 //Retrieve one entry by its ID, if it exists. Error if not.
 func OneEntry(id int64) (*Entry, error) {
 	e := new(Entry)
