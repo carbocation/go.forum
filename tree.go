@@ -48,36 +48,30 @@ func (e *Tree) Sibling() *Tree { return e.sibling }
 func (e *Tree) Parent() *Tree { return e.parent }
 
 func (e *Tree) AddChild(newE *Tree) {
-	fmt.Printf("Adding %p %v as a child of %p %v\n", newE, newE.Value.Title, e, e.Value.Title)
+	//fmt.Printf("Adding %p %v as a child of %p %v\n", newE, newE.Value.Title, e, e.Value.Title)
 	
-	//Slot is available
 	if e.child == nil {
+		//Slot is available
 		e.child, newE.parent = newE, e
-		
-		return
 	} else {
-		//Slot is unavailable. Set a sibling on the child
-		//newE.parent = e.parent
-		fmt.Printf("%p %v's child slot is full. Adding %p %v as a sibling of %p %v\n\n", e, e.Value.Title, newE, newE.Value.Title, e.child, e.child.Value.Title)
+		//Slot is unavailable.
+		//fmt.Printf("%p %v's child slot is full. Adding %p %v as a sibling of %p %v\n\n", e, e.Value.Title, newE, newE.Value.Title, e.child, e.child.Value.Title)
 		e.child.addSibling(newE)
-		
-		return
 	}
+	
+	return
 }
 
 func (e *Tree) addSibling(newE *Tree) {
 	if newE == nil {
-		e.sibling = nil
 		return
 	}
 
 	if newE.Value.Points() <= e.Value.Points() {
-		fmt.Printf("%p %v should be below %p %v\n\n", newE, newE.Value.Title, e, e.Value.Title)
-		// The new element belongs lower in the sibling tree
+		// The new element belongs BELOW the old one
+		//fmt.Printf("%p %v should be below %p %v\n\n", newE, newE.Value.Title, e, e.Value.Title)
 		if e.sibling == nil {
-			// If the new element belongs after the old one in the sibling list, 
-			// and if the old element has an empty sibling slot, 
-			// set the new element to be the sibling of the old one
+			// The old element has no sibling so insertion below it is trivial
 			newE.parent, e.sibling = e, newE
 			
 			return
@@ -89,54 +83,36 @@ func (e *Tree) addSibling(newE *Tree) {
 			return 
 		}
 	} else {
-		// The new element belongs above the old sibling
-		fmt.Printf("%p %v should be above %p %v\n\n", newE, newE.Value.Title, e, e.Value.Title)
-
-		if newE.sibling == nil {
-			fmt.Printf("newE (%p) %v has no sibling.\n", newE, newE.Value.Title)
+		// The new element belongs ABOVE the old one
+		//fmt.Printf("%p %v should be above %p %v\n\n", newE, newE.Value.Title, e, e.Value.Title)
+		
+		// New element may or may not have a sibling, but we will pop it off and then add it back 
+		// at the end to cover our bases in case it does
+		newESib := newE.sibling
+		
+		/*
+		fmt.Printf("e: %p %v\n", e, e)
+		fmt.Printf("newE: %p %v\n", newE, newE)
+		fmt.Printf("e.Parent: %p %v\n", e.parent, e.parent)
+		fmt.Printf("newE.sibling %p %v\n", newE.sibling, newE.sibling)
+		fmt.Printf("newE.parent %p %v\n", newE.parent, newE.parent)
+		*/
+		
+		if e == e.parent.child {
+			// Old element was a child of its parent
+			//fmt.Printf("e (%p) was a child of its parent (%p). Now newE (%p) %v will interpose.\n", e, e.parent, newE, newE.Value.Title)
 			
-			//New element has no sibling, so old element becomes its sibling trivially
-			if e == e.parent.child {
-				fmt.Printf("e (%p) was a child of its parent (%p). Now newE (%p) %v will interpose.\n", e, e.parent, newE, newE.Value.Title)
-				
-				newE.parent, e.parent.child, newE.sibling, e.parent = e.parent, newE, e, newE
-				
-				return
-			} else {
-				fmt.Printf("e (%p) %v was a sib of its parent (%p) %v. Now newE (%p) %v will interpose.\n", e, e.Value.Title, e.parent, e.parent.Value.Title, newE, newE.Value.Title)
-				
-				newE.parent, e.parent.sibling, newE.sibling, e.parent = e.parent, newE, e, newE
-				
-				return
-			}
-			
+			e.parent.child, newE.parent, newE.sibling, e.parent = newE, e.parent, e, newE
 		} else {
-			fmt.Println("New e has a sibling.")
-			//New element has a sibling. Old element becomes its sibling, but new element's old sibling needs to be added back
-			newESib := newE.sibling
+			// Old element was presumptively a sibling of its parent
+			//fmt.Printf("e (%p) %v was a sib of its parent (%p) %v. Now newE (%p) %v will interpose.\n", e, e.Value.Title, e.parent, e.parent.Value.Title, newE, newE.Value.Title)
 			
-			fmt.Printf("e: %p %v\n", e, e)
-			fmt.Printf("newE: %p %v\n", newE, newE)
-			fmt.Printf("e.Parent: %p %v\n", e.parent, e.parent)
-			fmt.Printf("newE.sibling %p %v\n", newE.sibling, newE.sibling)
-			fmt.Printf("newE.parent %p %v\n", newE.parent, newE.parent)
-			
-			
-			//New element has no sibling, so old element becomes its sibling trivially
-			if e == e.parent.child {
-				fmt.Printf("e (%p) was a child of its parent (%p). Now newE (%p) %v will interpose.\n", e, e.parent, newE, newE.Value.Title)
-				
-				newE.parent, e.parent.child, newE.sibling, e.parent = e.parent, newE, e, newE
-			} else {
-				fmt.Printf("e (%p) %v was a sib of its parent (%p) %v. Now newE (%p) %v will interpose.\n", e, e.Value.Title, e.parent, e.parent.Value.Title, newE, newE.Value.Title)
-				
-				newE.parent, e.parent.sibling, newE.sibling, e.parent = e.parent, newE, e, newE
-			}
-			
-			newE.addSibling(newESib)
-			
-			return
+			e.parent.sibling, newE.parent, newE.sibling, e.parent = newE, e.parent, e, newE
 		}
+		
+		newE.addSibling(newESib)
+		
+		return
 	}
 }
 
@@ -161,7 +137,8 @@ func main () {
 	
 	
 	t2 := New(Entry{Title: "Depth 1 #2", Upvotes: 2})
-	t2.AddChild(New(Entry{Title: "Depth 2 #1", Upvotes: 2}))
+	t2.AddChild(New(Entry{Title: "Depth 2 #2", Upvotes: 2}))
+	t2.AddChild(New(Entry{Title: "Depth 2 #1", Upvotes: 3}))
 	//t2.sibling, t2.child  = t2.child, nil
 	//t2.sibling.parent = t2
 	
