@@ -1,7 +1,7 @@
 package forum
 
 /*
-Define the methods that a user object must have in order to 
+Define the methods that a user object must have in order to
 be compatible with this forum system.
 */
 

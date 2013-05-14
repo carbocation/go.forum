@@ -28,7 +28,7 @@ type Entry struct {
 	Seconds      float64 //Seconds since creation
 	Upvotes      int64
 	Downvotes    int64
-	
+
 	parent, child, sibling *Entry //Mandatory pointer-holders for Tree-ness
 }
 
@@ -77,9 +77,9 @@ func (e Entry) Points() int64 {
 	return e.Upvotes - e.Downvotes
 }
 
-func (e *Entry) Child() *Entry { return e.child }
+func (e *Entry) Child() *Entry   { return e.child }
 func (e *Entry) Sibling() *Entry { return e.sibling }
-func (e *Entry) Parent() *Entry { return e.parent }
+func (e *Entry) Parent() *Entry  { return e.parent }
 
 func (e *Entry) AddChild(newE *Entry) {
 	if e.child == nil {
@@ -89,7 +89,7 @@ func (e *Entry) AddChild(newE *Entry) {
 		//Slot is unavailable, figure out where the child belongs among peer siblings
 		e.child.addSibling(newE)
 	}
-	
+
 	return
 }
 
@@ -103,22 +103,22 @@ func (e *Entry) addSibling(newE *Entry) {
 		if e.sibling == nil {
 			// The old element has no sibling so insertion below it is trivial
 			newE.parent, e.sibling = e, newE
-			
+
 			return
 		} else {
 			// The old element already has a sibling
 			// Try to add the new element as a sibling of the sibling
 			e.sibling.addSibling(newE)
-			
-			return 
+
+			return
 		}
 	} else {
 		// The new element belongs ABOVE the old one
-		
-		// New element may or may not have a sibling, but we will pop it off and then add it back 
+
+		// New element may or may not have a sibling, but we will pop it off and then add it back
 		// at the end to cover our bases in case it does
 		newESib := newE.sibling
-		
+
 		if e == e.parent.child {
 			// Old element was a child of its parent
 			e.parent.child, newE.parent, newE.sibling, e.parent = newE, e.parent, e, newE
@@ -126,10 +126,10 @@ func (e *Entry) addSibling(newE *Entry) {
 			// Old element was presumptively a sibling of its parent
 			e.parent.sibling, newE.parent, newE.sibling, e.parent = newE, e.parent, e, newE
 		}
-		
+
 		// Add back sibling of new element (if any)
 		newE.addSibling(newESib)
-		
+
 		return
 	}
 }
@@ -174,9 +174,9 @@ func DepthOneDescendantEntries(root int64) (*Entry, error) {
 
 func getEntries(root int64, flag string) (*Entry, error) {
 	// Store output in a map initially. Get it all in here before you try to build the tree.
-	entries := map[int64]*Entry{} //k: id => v: Entry
-	relationships := make([]map[string]int64,0) //A slice of maps with k: parentId in entries map => v: childId in entries map
-	
+	entries := map[int64]*Entry{}                //k: id => v: Entry
+	relationships := make([]map[string]int64, 0) //A slice of maps with k: parentId in entries map => v: childId in entries map
+
 	var stmt *sql.Stmt
 	var err error
 	switch flag {
@@ -189,13 +189,13 @@ func getEntries(root int64, flag string) (*Entry, error) {
 		return &Entry{}, err
 	}
 	defer stmt.Close()
-	
+
 	// Query from that prepared statement
 	rows, err := stmt.Query(root)
 	if err != nil {
 		return &Entry{}, err
 	}
-	
+
 	// Iterate over the rows
 	for rows.Next() {
 		var e Entry
@@ -214,9 +214,9 @@ func getEntries(root int64, flag string) (*Entry, error) {
 		}
 
 		entries[e.Id] = &e
-		relationships = append(relationships, map[string]int64{ "Parent": ancestor, "Child": e.Id})
+		relationships = append(relationships, map[string]int64{"Parent": ancestor, "Child": e.Id})
 	}
-	
+
 	//Construct the full Entry:
 	for _, rel := range relationships {
 		if rel["Parent"] == rel["Child"] {
@@ -224,6 +224,6 @@ func getEntries(root int64, flag string) (*Entry, error) {
 		}
 		entries[int64(rel["Parent"])].AddChild(entries[int64(rel["Child"])])
 	}
-	
+
 	return entries[root], nil
 }

@@ -1,5 +1,5 @@
 /*
-To be initialized, the forum expects a live Postgres database connection handle to 
+To be initialized, the forum expects a live Postgres database connection handle to
 be passed in. For example:
 
 var db *sql.DB
