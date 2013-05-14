@@ -48,7 +48,7 @@ func (e *Tree) Sibling() *Tree { return e.sibling }
 func (e *Tree) Parent() *Tree { return e.parent }
 
 func (e *Tree) AddChild(newE *Tree) {
-	fmt.Printf("Adding %p %v as a child of %p %v\n\n", newE, newE.Value.Title, e, e.Value.Title)
+	fmt.Printf("Adding %p %v as a child of %p %v\n", newE, newE.Value.Title, e, e.Value.Title)
 	
 	//Slot is available
 	if e.child == nil {
@@ -58,7 +58,7 @@ func (e *Tree) AddChild(newE *Tree) {
 	} else {
 		//Slot is unavailable. Set a sibling on the child
 		//newE.parent = e.parent
-		fmt.Printf("%p %v's slot is full. Adding %p %v as a sibling of %p %v\n\n", e.parent, e.parent.Value.Title, newE, newE.Value.Title, e, e.Value.Title)
+		fmt.Printf("%p %v's child slot is full. Adding %p %v as a sibling of %p %v\n\n", e, e.Value.Title, newE, newE.Value.Title, e.child, e.child.Value.Title)
 		e.child.addSibling(newE)
 		
 		return
@@ -155,19 +155,19 @@ func (e *Tree) Walk() {
 
 func main () {
 	t := New(Entry{Title: "Root", Upvotes: 10})
-	t.AddChild(New(Entry{Title: "Level 2 #1", Upvotes: 1}))
+	t.AddChild(New(Entry{Title: "Depth 1 #3", Upvotes: 1}))
 	//t.AddChild(New(Entry{Title: "Level 2 #2", Upvotes: 0}))
 	//t.AddChild(New(Entry{Title: "Level 2 #3", Upvotes: 1}))
 	
 	
-	t2 := New(Entry{Title: "Level 2 #2", Upvotes: 2})
-	t2.AddChild(New(Entry{Title: "Level 3 #1", Upvotes: 2}))
+	t2 := New(Entry{Title: "Depth 1 #2", Upvotes: 2})
+	t2.AddChild(New(Entry{Title: "Depth 2 #1", Upvotes: 2}))
 	//t2.sibling, t2.child  = t2.child, nil
 	//t2.sibling.parent = t2
 	
 	t.AddChild(t2)
 	
-	t.AddChild(New(Entry{Title: "Level 2 #3", Upvotes: 3}))
+	t.AddChild(New(Entry{Title: "Depth 1 #1", Upvotes: 3}))
 	
 	
 	t.Walk()
