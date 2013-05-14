@@ -6,11 +6,14 @@ import (
 )
 
 // Tree is an element in the tree.
-type Tree struct {
-	// Parent, left, and right pointers in the tree of elements.
-	// The root of the tree has parent = nil
-	parent, child, sibling *Tree
-	Value Entry
+type Tree interface {
+	// Parent, left, and right pointers or nil.
+	Child() *Tree
+	Sibling() *Tree
+	Parent() *Tree
+	AddChild(*Tree) //Add a child
+	Points() int64 //Return the node's score (on whatever metric) 
+	
 }
 
 type Entry struct {
@@ -27,27 +30,20 @@ type Entry struct {
 	Seconds      float64 //Seconds since creation
 	Upvotes      int64
 	Downvotes    int64
+	
+	Tree //An Entry has Tree-ness
+	parent, child, sibling *Entry //Mandatory pointer-holders for Tree-ness
 }
 
 func (e Entry) Points() int64 {
 	return e.Upvotes - e.Downvotes
 }
 
-func New(value Entry) *Tree {
-	t := &Tree{Value: value}
-	
-	fmt.Printf("Created %p %v\n", t, t.Value.Title)
-	
-	return t
-}
+func (e *Entry) Child() *Entry { return e.child }
+func (e *Entry) Sibling() *Entry { return e.sibling }
+func (e *Entry) Parent() *Entry { return e.parent }
 
-func (e *Tree) Child() *Tree { return e.child }
-
-func (e *Tree) Sibling() *Tree { return e.sibling }
-
-func (e *Tree) Parent() *Tree { return e.parent }
-
-func (e *Tree) AddChild(newE *Tree) {
+func (e *Entry) AddChild(newE *Entry) {
 	if e.child == nil {
 		//Slot is available, directly add the child
 		e.child, newE.parent = newE, e
@@ -59,12 +55,12 @@ func (e *Tree) AddChild(newE *Tree) {
 	return
 }
 
-func (e *Tree) addSibling(newE *Tree) {
+func (e *Entry) addSibling(newE *Entry) {
 	if newE == nil {
 		return
 	}
 
-	if newE.Value.Points() <= e.Value.Points() {
+	if newE.Points() <= e.Points() {
 		// The new element belongs BELOW the old one
 		if e.sibling == nil {
 			// The old element has no sibling so insertion below it is trivial
@@ -100,7 +96,7 @@ func (e *Tree) addSibling(newE *Tree) {
 	}
 }
 
-func (e *Tree) Walk() {
+func (e *Entry) Walk() {
 	if e == nil {
 		return
 	}
@@ -114,20 +110,20 @@ func (e *Tree) Walk() {
 }
 
 func main () {
-	t := New(Entry{Title: "Root", Upvotes: 10})
-	t.AddChild(New(Entry{Title: "Depth 1 #4", Upvotes: 0}))
-	t.AddChild(New(Entry{Title: "Depth 1 #3", Upvotes: 1}))
+	t := &Entry{Title: "Root", Upvotes: 0}
+	t.AddChild(&Entry{Title: "Depth 1 #4", Upvotes: 0})
+	t.AddChild(&Entry{Title: "Depth 1 #3", Upvotes: 1})
 	
 	
-	t2 := New(Entry{Title: "Depth 1 #2", Upvotes: 2})
-	t2.AddChild(New(Entry{Title: "Depth 2 #2", Upvotes: 2}))
-	t2.AddChild(New(Entry{Title: "Depth 2 #1", Upvotes: 3}))
+	t2 := &Entry{Title: "Depth 1 #2", Upvotes: 2}
+	t2.AddChild(&Entry{Title: "Depth 2 #2", Upvotes: 9})
+	t2.AddChild(&Entry{Title: "Depth 2 #1", Upvotes: 10})
 	//t2.sibling, t2.child  = t2.child, nil
 	//t2.sibling.parent = t2
 	
 	t.AddChild(t2)
 	
-	t.AddChild(New(Entry{Title: "Depth 1 #1", Upvotes: 3}))
+	t.AddChild(&Entry{Title: "Depth 1 #1", Upvotes: 3})
 	
 	
 	t.Walk()
