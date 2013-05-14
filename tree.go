@@ -58,6 +58,7 @@ func (e *Tree) AddChild(newE *Tree) {
 	} else {
 		//Slot is unavailable. Set a sibling on the child
 		//newE.parent = e.parent
+		fmt.Printf("%p %v's slot is full. Adding %p %v as a sibling of %p %v\n\n", e.parent, e.parent.Value.Title, newE, newE.Value.Title, e, e.Value.Title)
 		e.child.addSibling(newE)
 		
 		return
@@ -69,8 +70,6 @@ func (e *Tree) addSibling(newE *Tree) {
 		e.sibling = nil
 		return
 	}
-
-	fmt.Printf("%p %v's slot is full. Adding %p %v as a sibling of %p %v\n\n", e.parent, e.parent.Value.Title, newE, newE.Value.Title, e, e.Value.Title)
 
 	if newE.Value.Points() <= e.Value.Points() {
 		fmt.Printf("%p %v should be below %p %v\n\n", newE, newE.Value.Title, e, e.Value.Title)
