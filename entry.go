@@ -9,10 +9,7 @@ package forum
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
-
-	"github.com/carbocation/go.util/datatypes/closuretable"
 )
 
 // Put ModifiedBy, ModifiedAuthor in a separate table. A post can only be
@@ -31,6 +28,8 @@ type Entry struct {
 	Seconds      float64 //Seconds since creation
 	Upvotes      int64
 	Downvotes    int64
+	
+	parent, child, sibling *Entry //Mandatory pointer-holders for Tree-ness
 }
 
 // Stores an entry to the database and correctly builds its ancestry based
@@ -78,6 +77,63 @@ func (e Entry) Points() int64 {
 	return e.Upvotes - e.Downvotes
 }
 
+func (e *Entry) Child() *Entry { return e.child }
+func (e *Entry) Sibling() *Entry { return e.sibling }
+func (e *Entry) Parent() *Entry { return e.parent }
+
+func (e *Entry) AddChild(newE *Entry) {
+	if e.child == nil {
+		//Slot is available, directly add the child
+		e.child, newE.parent = newE, e
+	} else {
+		//Slot is unavailable, figure out where the child belongs among peer siblings
+		e.child.addSibling(newE)
+	}
+	
+	return
+}
+
+func (e *Entry) addSibling(newE *Entry) {
+	if newE == nil {
+		return
+	}
+
+	if newE.Points() <= e.Points() {
+		// The new element belongs BELOW the old one
+		if e.sibling == nil {
+			// The old element has no sibling so insertion below it is trivial
+			newE.parent, e.sibling = e, newE
+			
+			return
+		} else {
+			// The old element already has a sibling
+			// Try to add the new element as a sibling of the sibling
+			e.sibling.addSibling(newE)
+			
+			return 
+		}
+	} else {
+		// The new element belongs ABOVE the old one
+		
+		// New element may or may not have a sibling, but we will pop it off and then add it back 
+		// at the end to cover our bases in case it does
+		newESib := newE.sibling
+		
+		if e == e.parent.child {
+			// Old element was a child of its parent
+			e.parent.child, newE.parent, newE.sibling, e.parent = newE, e.parent, e, newE
+		} else {
+			// Old element was presumptively a sibling of its parent
+			e.parent.sibling, newE.parent, newE.sibling, e.parent = newE, e.parent, e, newE
+		}
+		
+		// Add back sibling of new element (if any)
+		newE.addSibling(newESib)
+		
+		return
+	}
+}
+
 //Retrieve one entry by its ID, if it exists. Error if not.
 func OneEntry(id int64) (*Entry, error) {
 	e := new(Entry)
@@ -107,46 +163,47 @@ func OneEntry(id int64) (*Entry, error) {
 }
 
 // Retrieves all entries that are descendants of the ancestral entry, including the ancestral entry itself
-func DescendantEntries(root int64) (entries map[int64]Entry, err error) {
-	entries, err = getEntries(root, "AllDescendants")
-	return
+func DescendantEntries(root int64) (*Entry, error) {
+	return getEntries(root, "AllDescendants")
 }
 
 // Retrieves entries that are immediate descendants of the ancestral entry, including the ancestral entry itself
-func DepthOneDescendantEntries(root int64) (entries map[int64]Entry, err error) {
-	entries, err = getEntries(root, "DepthOneDescendants")
-	return
+func DepthOneDescendantEntries(root int64) (*Entry, error) {
+	return getEntries(root, "DepthOneDescendants")
 }
 
-func getEntries(root int64, flag string) (entries map[int64]Entry, err error) {
-	entries = map[int64]Entry{}
-
+func getEntries(root int64, flag string) (*Entry, error) {
+	// Store output in a map initially. Get it all in here before you try to build the tree.
+	entries := map[int64]*Entry{} //k: id => v: Entry
+	relationships := make([]map[string]int64,0) //A slice of maps with k: parentId in entries map => v: childId in entries map
+	
 	var stmt *sql.Stmt
-
+	var err error
 	switch flag {
 	case "AllDescendants":
-		stmt, err = Config.DB.Prepare(queries.DescendantEntries)
+		stmt, err = Config.DB.Prepare(queries.DescendantEntriesChildParent)
 	case "DepthOneDescendants":
-		stmt, err = Config.DB.Prepare(queries.DepthOneDescendantEntries)
+		stmt, err = Config.DB.Prepare(queries.DepthOneDescendantEntriesChildParent)
 	}
 	if err != nil {
-		return
+		return &Entry{}, err
 	}
 	defer stmt.Close()
-
+	
 	// Query from that prepared statement
 	rows, err := stmt.Query(root)
 	if err != nil {
-		return
+		return &Entry{}, err
 	}
-
+	
 	// Iterate over the rows
 	for rows.Next() {
 		var e Entry
 		var body, url sql.NullString
-		err = rows.Scan(&e.Id, &e.Title, &body, &url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle, &e.Seconds, &e.Upvotes, &e.Downvotes)
+		var ancestor int64
+		err = rows.Scan(&ancestor, &e.Id, &e.Title, &body, &url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle, &e.Seconds, &e.Upvotes, &e.Downvotes)
 		if err != nil {
-			return
+			return &e, err
 		}
 
 		//Only the body or the url will be set; they are mutually exclusive
@@ -156,68 +213,17 @@ func getEntries(root int64, flag string) (entries map[int64]Entry, err error) {
 			e.Url = url.String
 		}
 
-		entries[e.Id] = e
+		entries[e.Id] = &e
+		relationships = append(relationships, map[string]int64{ "Parent": ancestor, "Child": e.Id})
 	}
-
-	return
-}
-
-//Returns a closure table of IDs that are descendants of a given ID (or the ID itself)
-func ClosureTable(id int64) (ct *closuretable.ClosureTable, err error) {
-	ct, err = getClosureTable(id, "AllDescendants")
-	if err != nil {
-		err = errors.New("forum: Error in AllDescendants: " + err.Error() + " ID was " + fmt.Sprintf("%d", id))
-	}
-	return
-}
-
-//Returns a closure table keeping only IDs that are direct descendants of a given ID (or the ID itself)
-func DepthOneClosureTable(id int64) (ct *closuretable.ClosureTable, err error) {
-	ct, err = getClosureTable(id, "DepthOneDescendants")
-	if err != nil {
-		err = errors.New("forum: Error in DepthOneDescendants: " + err.Error())
-	}
-	return
-}
-
-func getClosureTable(id int64, flag string) (ct *closuretable.ClosureTable, err error) {
-	ct = new(closuretable.ClosureTable)
-
-	var stmt *sql.Stmt
-
-	// Pull down the remaining elements in the closure table that are descendants of this node
-	switch flag {
-	case "AllDescendants":
-		stmt, err = Config.DB.Prepare(queries.DescendantClosureTable)
-	case "DepthOneDescendants":
-		stmt, err = Config.DB.Prepare(queries.DepthOneClosureTable)
-	}
-	if err != nil {
-		return
-	}
-	defer stmt.Close()
-
-	rows, err := stmt.Query(id)
-	if err != nil {
-		//fmt.Printf("Query Error: %v", err)
-		return
-	}
-
-	//Populate the closuretable
-	rel := new(closuretable.Relationship)
-	for rows.Next() {
-		err = rows.Scan(&rel.Ancestor, &rel.Descendant, &rel.Depth)
-		if err != nil {
-			//fmt.Printf("Rowscan error: %s\n", err)
-			return
+	
+	//Construct the full Entry:
+	for _, rel := range relationships {
+		if rel["Parent"] == rel["Child"] {
+			continue
 		}
-
-		err = ct.AddRelationship(*rel)
-		if err != nil {
-			//fmt.Printf("AddRelationship error: %s\n", err)
-			return
-		}
+		entries[int64(rel["Parent"])].AddChild(entries[int64(rel["Child"])])
 	}
-
-	return
+	
+	return entries[root], nil
 }
