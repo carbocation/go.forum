@@ -12,7 +12,7 @@ var queries = struct {
 	VoteUpsert                           string //Upsert a vote
 	FindVote                             string //Retrieve a vote by userId and entryId
 }{
-	DescendantEntriesChildParent: `select ancestor, e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle, extract(epoch from (now()-e.created)) seconds, COALESCE(v.upvotes, 0) upvotes, COALESCE(v.downvotes, 0) downvotes
+	DescendantEntriesChildParent: `select ancestor, e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle, extract(epoch from (now()-e.created)) seconds, COALESCE(v.upvotes, 0) upvotes, COALESCE(v.downvotes, 0) downvotes, COALESCE(vu.upvote::int,0) uupvote, COALESCE(vu.downvote::int,0) udownvote 
 from entry_closures ec
 join entry e ON e.id=ec.descendant
 join account a ON a.id=e.author_id
@@ -21,6 +21,10 @@ left join (
 	from vote
 	group by entry_id
 ) v ON v.entry_id=e.id
+left join vote vu on (
+	vu.entry_id=e.id
+	AND vu.user_id=$2
+)
 where descendant in (
 	select descendant
 	from entry_closures
@@ -35,16 +39,20 @@ and (
 	(ancestor=descendant and ancestor=$1)
 	OR depth=1
 )`,
-	DepthOneDescendantEntriesChildParent: `SELECT ancestor, e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle, extract(epoch from (now()-e.created)) seconds, COALESCE(v.upvotes, 0) upvotes, COALESCE(v.downvotes, 0) downvotes
-FROM entry_closures closure
-JOIN entry e ON e.id = closure.descendant
-JOIN account a ON a.id=e.author_id
-LEFT JOIN (
-	SELECT entry_id, SUM(upvote::int) upvotes, SUM(downvote::int) downvotes 
-	FROM vote
-	GROUP BY entry_id
+	DepthOneDescendantEntriesChildParent: `select ancestor, e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle, extract(epoch from (now()-e.created)) seconds, COALESCE(v.upvotes, 0) upvotes, COALESCE(v.downvotes, 0) downvotes, COALESCE(vu.upvote::int,0) uupvote, COALESCE(vu.downvote::int,0) udownvote 
+from entry_closures closure
+join entry e ON e.id = closure.descendant
+join account a ON a.id=e.author_id
+left join (
+	select entry_id, SUM(upvote::int) upvotes, SUM(downvote::int) downvotes 
+	from vote
+	group by entry_id
 ) v ON v.entry_id=e.id
-WHERE 1=1
+left join vote vu on (
+	vu.entry_id=e.id
+	AND vu.user_id=$2
+)
+where 1=1
 AND closure.ancestor = $1
 AND (closure.depth=1 OR closure.depth=0)`,
 	OneEntry: `SELECT e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle, extract(epoch from (now()-e.created)) seconds, COALESCE(v.upvotes, 0), COALESCE(v.downvotes, 0)

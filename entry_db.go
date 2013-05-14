@@ -78,16 +78,16 @@ func OneEntry(id int64) (*Entry, error) {
 }
 
 // Retrieves all entries that are descendants of the ancestral entry, including the ancestral entry itself
-func DescendantEntries(root int64) (*Entry, error) {
-	return getEntries(root, "AllDescendants")
+func DescendantEntries(root int64, user User) (*Entry, error) {
+	return getEntries(root, "AllDescendants", user)
 }
 
 // Retrieves entries that are immediate descendants of the ancestral entry, including the ancestral entry itself
-func DepthOneDescendantEntries(root int64) (*Entry, error) {
-	return getEntries(root, "DepthOneDescendants")
+func DepthOneDescendantEntries(root int64, user User) (*Entry, error) {
+	return getEntries(root, "DepthOneDescendants", user)
 }
 
-func getEntries(root int64, flag string) (*Entry, error) {
+func getEntries(root int64, flag string, user User) (*Entry, error) {
 	// Store output in a map initially. Get it all in here before you try to build the tree.
 	entries := map[int64]*Entry{}                //k: id => v: Entry
 	relationships := make([]map[string]int64, 0) //A slice of maps with k: parentId in entries map => v: childId in entries map
@@ -106,19 +106,19 @@ func getEntries(root int64, flag string) (*Entry, error) {
 	defer stmt.Close()
 
 	// Query from that prepared statement
-	rows, err := stmt.Query(root)
+	rows, err := stmt.Query(root, user.GetId())
 	if err != nil {
 		return &Entry{}, err
 	}
 
 	// Iterate over the rows
 	for rows.Next() {
-		var e Entry
+		var e *Entry = &Entry{UserVote: &Vote{}}
 		var body, url sql.NullString
 		var ancestor int64
-		err = rows.Scan(&ancestor, &e.Id, &e.Title, &body, &url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle, &e.Seconds, &e.Upvotes, &e.Downvotes)
+		err = rows.Scan(&ancestor, &e.Id, &e.Title, &body, &url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle, &e.Seconds, &e.Upvotes, &e.Downvotes, &e.UserVote.Upvote, &e.UserVote.Downvote)
 		if err != nil {
-			return &e, err
+			return e, err
 		}
 
 		//Only the body or the url will be set; they are mutually exclusive
@@ -128,7 +128,7 @@ func getEntries(root int64, flag string) (*Entry, error) {
 			e.Url = url.String
 		}
 
-		entries[e.Id] = &e
+		entries[e.Id] = e
 		relationships = append(relationships, map[string]int64{"Parent": ancestor, "Child": e.Id})
 	}
 

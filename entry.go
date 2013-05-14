@@ -23,11 +23,14 @@ type Entry struct {
 	AuthorId int64     "ID of the author of the post"
 	Forum    bool      `schema:"-"` //Is this Entry actually a forum instead?
 
-	//These are not stored in the DB and are just generated fields
+	//Fields beneath this line are not persisted to the Entry table
+
 	AuthorHandle string  //Name of the author
 	Seconds      float64 //Seconds since creation
 	Upvotes      int64
 	Downvotes    int64
+	
+	UserVote *Vote //A Vote representing how the current user has voted on this Entry
 
 	parent, child, sibling *Entry //Mandatory pointer-holders for Tree-ness
 }
