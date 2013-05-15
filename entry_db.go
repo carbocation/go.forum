@@ -140,5 +140,5 @@ func getEntries(root int64, flag string, user User) (*Entry, error) {
 		entries[int64(rel["Parent"])].AddChild(entries[int64(rel["Child"])])
 	}
 
-	return entries[root], nil
+	return Arrange(entries[root]), nil
 }
