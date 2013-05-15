@@ -38,88 +38,122 @@ type Entry struct {
 func (e *Entry) Child() *Entry           { return e.child }
 func (e *Entry) Sibling() *Entry         { return e.sibling }
 func (e *Entry) Parent() *Entry          { return e.parent }
-func (e *Entry) Greater(cmp *Entry) bool { return e.Points() > cmp.Points() }
+func (e *Entry) Greater(cmp *Entry) bool { return e.Score() > cmp.Score() }
 
+//Return an ordered *Entry tree
+//Order among siblings is determined by Score
+//Score is determined recursively, with all Child (and Child's Siblings, their children, etc)
+// contributing to the score
+func Arrange(e *Entry) *Entry {
+	if e == nil {
+		return nil
+	}
+
+	//Continue through all child nodes to ensure everything gets sorted
+	if e.Child() != nil {
+		e.child = Arrange(e.Child())
+	}
+
+	//Continue through all sibling nodes to ensure everything gets sorted
+	if e.Sibling() != nil {
+		e.sibling = Arrange(e.Sibling())
+	}
+
+	//If we have a sibling, and if we are not merely a sibling ourselves, mergesort this like a linked list
+	if e.Sibling() != nil && (e.Parent() == nil || e.Parent().Sibling() != e) {
+		//Current node is root or its parent is a true parent
+		e = mergeSort(e)
+	}
+
+	return e
+}
+
+//Do a mergeSort to put the siblings in order
+//Based on Java code from http://www.dontforgettothink.com/2011/11/23/merge-sort-of-linked-list/
+func mergeSort(e *Entry) *Entry {
+	if e == nil || e.Sibling() == nil {
+		//Not even a list, or is a list of exactly one
+		return e
+	}
+
+	//Get the middle node in the list, then designate the node right after that
+	// as the first of a new list.
+	var middle *Entry = e.getMiddle()
+	var sHalf *Entry = middle.Sibling()
+
+	//Unlink the two lists.
+	middle.sibling, sHalf.parent = nil, nil
+
+	return merge(mergeSort(e), mergeSort(sHalf))
+}
+
+//Find the middle entry among a list of siblings
+//Required for mergeSort
+func (e *Entry) getMiddle() *Entry {
+	if e == nil {
+		return e
+	}
+
+	var slow, fast *Entry
+	slow, fast = e, e
+
+	for fast.Sibling() != nil && fast.Sibling().Sibling() != nil {
+		slow, fast = slow.Sibling(), fast.Sibling().Sibling()
+	}
+
+	return slow
+}
+
+//Do the merge step of mergeSort, using the Greater() method to sort siblings
+func merge(a, b *Entry) *Entry {
+	dummyHead := &Entry{}
+	curr := dummyHead
+
+	for a != nil && b != nil {
+		if a.Greater(b) {
+			curr.sibling, a = a, a.Sibling()
+			//May need to split into two lines
+		} else {
+			curr.sibling, b = b, b.Sibling()
+		}
+
+		curr = curr.Sibling()
+	}
+
+	if a == nil {
+		curr.sibling = b
+	} else {
+		curr.sibling = a
+	}
+
+	return dummyHead.Sibling()
+}
+
+//Points return a user-visible indicator of Upvotes - Downvotes
 func (e *Entry) Points() int64 {
 	if e == nil {
 		return 0
 	}
 
-	/*
-		if e.Parent() == nil || e.ParentIsForum() {
-			//If the parent is a forum, or if we have no parent
-			//For top-level forum entries, i.e. 'STORIES', define points
-			return e.recursivePoints()
-		}
-	*/
-
-	//Default (for comments)
 	return e.Upvotes - e.Downvotes
 }
 
-func (e *Entry) recursivePoints() int64 {
+//Score determines sort order and can also be shown to help explain why comments are in their given order
+func (e *Entry) Score() int64 {
 	if e == nil {
 		return 0
 	}
 
 	if e.Child() == nil {
-		return (e.Upvotes - e.Downvotes) + e.Child().recursivePoints()
+		return e.Upvotes - e.Downvotes
 	} else {
-		return (e.Upvotes - e.Downvotes) + e.Child().recursivePoints() + e.Child().Sibling().recursivePoints()
+		return e.Upvotes - e.Downvotes + e.Child().Score() + e.Child().Sibling().Score()
 	}
 }
 
-func (e *Entry) ParentIsForum() bool {
-	//Because of the LCRS layout of the tree, this is less trivial and merits a method
-	if e.Parent() == nil {
-		return false
-	}
-
-	if e.Parent().Forum {
-		return true
-	}
-
-	if e.Parent().Sibling() == e {
-		//Ascend the sibling tree but not the child tree
-		return e.Parent().ParentIsForum()
-	}
-
-	return false
-}
-
-func (e *Entry) Sort() {
-	if e == nil {
-		return
-	}
-
-	if e.Child() != nil {
-		//Sort the children
-		e.Child().Sort()
-	}
-
-	if e.Sibling() != nil && e.Sibling().Greater(e) {
-		//Swap: This node has a sibling that deserves to be above it
-
-		if e.Parent() != nil && e.Parent().Child() == e {
-			//e was a direct child of its parent
-			e.parent, e.Parent().child, e.Sibling().parent = e.Sibling(), e.Sibling(), e.Parent()
-		} else if e.Parent() != nil && e.Parent().Sibling() == e {
-			//e was a sibling of its parent
-			e.parent, e.Parent().sibling, e.Sibling().parent = e.Sibling(), e.Sibling(), e.Parent()
-		} else {
-			//e has no parent
-			e.parent, e.Sibling().parent = e.Sibling(), nil
-		}
-	}
-
-	if e.Sibling() != nil {
-		//Now go on down the chain to sort the rest of the siblings
-		e.Sibling().Sort()
-	}
-
-	return
-}
-
+//Add a child node to the current entry
+//If the current entry's child slot is full, recursively try the child's sibling(s)' slots
+//until an open (nil) slot is found
 func (e *Entry) AddChild(newE *Entry) {
 	if e.child == nil {
 		//Slot is available, directly add the child
@@ -132,6 +166,8 @@ func (e *Entry) AddChild(newE *Entry) {
 	return
 }
 
+//Add a sibling to the specified node. If the node already has a sibling, add to that sibling. 
+//Recurse until there is an open sibling slot. 
 func (e *Entry) addSibling(newE *Entry) {
 	if newE == nil {
 		return
