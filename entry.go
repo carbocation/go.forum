@@ -35,10 +35,10 @@ type Entry struct {
 	parent, child, sibling *Entry //Mandatory pointer-holders for Tree-ness
 }
 
-func (e *Entry) Child() *Entry           { return e.child }
-func (e *Entry) Sibling() *Entry         { return e.sibling }
-func (e *Entry) Parent() *Entry          { return e.parent }
-func (e *Entry) Greater(cmp *Entry) bool { return e.Score() > cmp.Score() }
+func (e *Entry) Child() *Entry        { return e.child }
+func (e *Entry) Sibling() *Entry      { return e.sibling }
+func (e *Entry) Parent() *Entry       { return e.parent }
+func (e *Entry) Less(cmp *Entry) bool { return e.Score() < cmp.Score() }
 
 //Return an ordered *Entry tree
 //Order among siblings is determined by Score
@@ -104,13 +104,13 @@ func (e *Entry) getMiddle() *Entry {
 	return slow
 }
 
-//Do the merge step of mergeSort, using the Greater() method to sort siblings
+//Do the merge step of mergeSort, using the Less() method to sort siblings
 func merge(a, b *Entry) *Entry {
 	dummyHead := &Entry{}
 	curr := dummyHead
 
 	for a != nil && b != nil {
-		if a.Greater(b) {
+		if b.Less(a) {
 			curr.sibling, a = a, a.Sibling()
 			//May need to split into two lines
 		} else {
@@ -166,28 +166,18 @@ func (e *Entry) AddChild(newE *Entry) {
 	return
 }
 
-//Add a sibling to the specified node. If the node already has a sibling, add to that sibling. 
-//Recurse until there is an open sibling slot. 
+//Add a sibling to the specified node. If the node already has a sibling, add to that sibling.
+//Recurse until there is an open sibling slot.
+//Note that, while this does not put the entries in the precisely correct order based on
+//recursive score (because there is no guarantee that an entry's children have been associated
+// with the entry yet, so the recursive calculation may well miss a good chunk of points),
+// it's still better than a non-score-based approach. Why? This gives us partial ordering
 func (e *Entry) addSibling(newE *Entry) {
 	if newE == nil {
 		return
 	}
 
-	if !newE.Greater(e) {
-		// The new element belongs BELOW the old one
-		if e.sibling == nil {
-			// The old element has no sibling so insertion below it is trivial
-			newE.parent, e.sibling = e, newE
-
-			return
-		} else {
-			// The old element already has a sibling
-			// Try to add the new element as a sibling of the sibling
-			e.sibling.addSibling(newE)
-
-			return
-		}
-	} else {
+	if e.Less(newE) {
 		// The new element belongs ABOVE the old one
 
 		// New element may or may not have a sibling, but we will pop it off and then add it back
@@ -206,5 +196,19 @@ func (e *Entry) addSibling(newE *Entry) {
 		newE.addSibling(newESib)
 
 		return
+	} else {
+		// The new element belongs BELOW the old one
+		if e.sibling == nil {
+			// The old element has no sibling so insertion below it is trivial
+			newE.parent, e.sibling = e, newE
+
+			return
+		} else {
+			// The old element already has a sibling
+			// Try to add the new element as a sibling of the sibling
+			e.sibling.addSibling(newE)
+
+			return
+		}
 	}
 }
