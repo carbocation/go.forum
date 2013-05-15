@@ -20,7 +20,17 @@ func makeUnsortedTree() *Entry {
 	return x
 }
 
-func BenchmarkTree(b *testing.B) {
+func BenchmarkTreeDescendingScore(b *testing.B) {
+	x := makeUnsortedTree()
+	
+	for i := 0; i < b.N; i++ {
+		x.AddChild(&Entry{Downvotes: int64(i)})
+	}
+	
+	x = Arrange(x)
+}
+
+func BenchmarkTreeFlatScore(b *testing.B) {
 	x := makeUnsortedTree()
 	
 	for i := 0; i < b.N; i++ {
@@ -28,7 +38,16 @@ func BenchmarkTree(b *testing.B) {
 	}
 	
 	x = Arrange(x)
+}
+
+func BenchmarkTreeAscendingScore(b *testing.B) {
+	x := makeUnsortedTree()
 	
+	for i := 0; i < b.N; i++ {
+		x.AddChild(&Entry{Upvotes: int64(i)})
+	}
+	
+	x = Arrange(x)
 }
 
 func TestTree(t *testing.T) {
