@@ -6,11 +6,21 @@ package forum
 import (
 	"database/sql"
 	"errors"
+	"strings"
 )
 
 // Stores an entry to the database and correctly builds its ancestry based
 // on its parent's ID.
 func (e *Entry) Persist(parentId int64) error {
+	//Trim
+	e.Title = strings.TrimSpace(e.Title)
+	e.Body = strings.TrimSpace(e.Body)
+
+	//Validate
+	if e.Body == "" {
+		return errors.New("The Body must not be empty or consist solely of whitespace.")
+	}
+
 	//Wrap in a transaction
 	tx, err := Config.DB.Begin()
 
@@ -60,18 +70,10 @@ func OneEntry(id int64) (*Entry, error) {
 	}
 	defer stmt.Close()
 
-	var body, url sql.NullString
-	err = stmt.QueryRow(id).Scan(&e.Id, &e.Title, &body, &url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle, &e.Seconds, &e.Upvotes, &e.Downvotes)
+	err = stmt.QueryRow(id).Scan(&e.Id, &e.Title, &e.Body, &e.Url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle, &e.Seconds, &e.Upvotes, &e.Downvotes)
 	if err != nil {
 		e = new(Entry)
 		return e, err
-	}
-
-	//Only the body or the url will be set; they are mutually exclusive
-	if body.Valid {
-		e.Body = body.String
-	} else if url.Valid {
-		e.Url = url.String
 	}
 
 	return e, err
@@ -114,18 +116,10 @@ func getEntries(root int64, flag string, user User) (*Entry, error) {
 	// Iterate over the rows
 	for rows.Next() {
 		var e *Entry = &Entry{UserVote: &Vote{}}
-		var body, url sql.NullString
 		var ancestor int64
-		err = rows.Scan(&ancestor, &e.Id, &e.Title, &body, &url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle, &e.Seconds, &e.Upvotes, &e.Downvotes, &e.UserVote.Upvote, &e.UserVote.Downvote)
+		err = rows.Scan(&ancestor, &e.Id, &e.Title, &e.Body, &e.Url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle, &e.Seconds, &e.Upvotes, &e.Downvotes, &e.UserVote.Upvote, &e.UserVote.Downvote)
 		if err != nil {
 			return e, err
-		}
-
-		//Only the body or the url will be set; they are mutually exclusive
-		if body.Valid {
-			e.Body = body.String
-		} else if url.Valid {
-			e.Url = url.String
 		}
 
 		entries[e.Id] = e
