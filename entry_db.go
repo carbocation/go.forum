@@ -139,6 +139,8 @@ func getEntries(root int64, flag string, user User) (*Entry, error) {
 		}
 		entries[int64(rel["Parent"])].AddChild(entries[int64(rel["Child"])])
 	}
+	
+	entries[root].Sort()
 
 	return entries[root], nil
 }
