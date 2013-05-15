@@ -145,10 +145,30 @@ func (e *Entry) Score() int64 {
 	}
 
 	if e.Child() == nil {
-		return e.Upvotes - e.Downvotes
+		return e.score()
 	} else {
-		return e.Upvotes - e.Downvotes + e.Child().Score() + e.Child().Sibling().Score()
+		//If the entry has children, all of the entry's children's (child + sibs) scores count for and against it, 
+		// as do their children's scores, etc.
+		return e.score() + e.Child().recursiveScore()
 	}
+}
+
+//The actual definition of a score can rely on anything found in Entry
+func (e *Entry) score() int64 {
+	if e == nil {
+		return 0
+	}
+	
+	return e.Upvotes - e.Downvotes
+}
+
+//Traverses both sides of the tree starting from an Entry and sums the score
+func (e *Entry) recursiveScore() int64 {
+	if e == nil {
+		return 0
+	}
+	
+	return e.score() + e.Child().recursiveScore() + e.Sibling().recursiveScore()
 }
 
 //Add a child node to the current entry
@@ -177,38 +197,27 @@ func (e *Entry) addSibling(newE *Entry) {
 		return
 	}
 
-	if e.Less(newE) {
-		// The new element belongs ABOVE the old one
+	// The new element will be inserted ABOVE the old one
+	// This optimizes for the case where the new element has
+	// no siblings
 
-		// New element may or may not have a sibling, but we will pop it off and then add it back
-		// at the end to cover our bases in case it does
-		newESib := newE.sibling
+	// New element may have a sibling (or may be nil). We will pop it off and then add it back
+	// at the end to cover our bases in case it's not nil.
+	newESib := newE.Sibling()
 
-		if e == e.parent.child {
-			// Old element was a child of its parent
-			e.parent.child, newE.parent, newE.sibling, e.parent = newE, e.parent, e, newE
-		} else {
-			// Old element was presumptively a sibling of its parent
-			e.parent.sibling, newE.parent, newE.sibling, e.parent = newE, e.parent, e, newE
-		}
-
-		// Add back sibling of new element (if any)
-		newE.addSibling(newESib)
-
-		return
+	if e.Parent() == nil {
+		// Old element was a root node, and we are directly adding a sibling to it (this should probably not be allowed)
+		newE.sibling, e.parent = e, newE
+	} else if e == e.Parent().child {
+		// Old element was a child of its parent
+		e.Parent().child, newE.parent, newE.sibling, e.parent = newE, e.Parent(), e, newE
 	} else {
-		// The new element belongs BELOW the old one
-		if e.sibling == nil {
-			// The old element has no sibling so insertion below it is trivial
-			newE.parent, e.sibling = e, newE
-
-			return
-		} else {
-			// The old element already has a sibling
-			// Try to add the new element as a sibling of the sibling
-			e.sibling.addSibling(newE)
-
-			return
-		}
+		// Old element was presumptively a sibling of its parent
+		e.Parent().sibling, newE.parent, newE.sibling, e.parent = newE, e.Parent(), e, newE
 	}
+
+	// Add back sibling of new element (if any)
+	newE.addSibling(newESib)
+
+	return
 }
