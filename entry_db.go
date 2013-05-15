@@ -20,13 +20,6 @@ func (e *Entry) Persist(parentId int64) error {
 	if e.Body == "" {
 		return errors.New("The Body must not be empty or consist solely of whitespace.")
 	}
-	
-	//When creating new posts, we set their parent to their true parent (we don't use 
-	// LCRS at that stage), so checking for Parent().Forum is sufficient.
-	if e.Title == "" && e.Parent().Forum {
-		//Unacceptable to have an empty title if this is new entry within a forum
-		return errors.New("The Title must not be empty or consist solely of whitespace.")
-	}
 
 	//Wrap in a transaction
 	tx, err := Config.DB.Begin()
@@ -76,7 +69,7 @@ func OneEntry(id int64) (*Entry, error) {
 		return e, err
 	}
 	defer stmt.Close()
-	
+
 	err = stmt.QueryRow(id).Scan(&e.Id, &e.Title, &e.Body, &e.Url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle, &e.Seconds, &e.Upvotes, &e.Downvotes)
 	if err != nil {
 		e = new(Entry)
