@@ -15,13 +15,13 @@ import (
 // Put ModifiedBy, ModifiedAuthor in a separate table. A post can only be
 // created once but modified an infinite number of times.
 type Entry struct {
-	Id       int64     "The ID of the post"
-	Title    string    "Title of the post. Will be empty for entries that are really intended to be comments."
-	Body     string    "Contents of the post. Will be empty for entries that are intended to be links."
-	Url      string    //Used if the post is just a link
-	Created  time.Time "Time at which the post was created."
-	AuthorId int64     "ID of the author of the post"
+	Id       int64     //The ID of the post
+	Title    string    //Title of the post. Will be empty for entries that are really intended to be comments.
+	Body     string    //Contents of the post. Will be empty for entries that are intended to be links.
+	Created  time.Time //Time at which the post was created.
+	AuthorId int64     `schema:"-"` //ID of the author of the post
 	Forum    bool      `schema:"-"` //Is this Entry actually a forum instead?
+	Url      bool      `schema:"-"` //Is this Entry just a link?
 
 	//Fields beneath this line are not persisted to the Entry table
 
@@ -147,7 +147,7 @@ func (e *Entry) Score() int64 {
 	if e.Child() == nil {
 		return e.score()
 	} else {
-		//If the entry has children, all of the entry's children's (child + sibs) scores count for and against it, 
+		//If the entry has children, all of the entry's children's (child + sibs) scores count for and against it,
 		// as do their children's scores, etc.
 		return e.score() + e.Child().recursiveScore()
 	}
@@ -158,7 +158,7 @@ func (e *Entry) score() int64 {
 	if e == nil {
 		return 0
 	}
-	
+
 	return e.Upvotes - e.Downvotes
 }
 
@@ -167,7 +167,7 @@ func (e *Entry) recursiveScore() int64 {
 	if e == nil {
 		return 0
 	}
-	
+
 	return e.score() + e.Child().recursiveScore() + e.Sibling().recursiveScore()
 }
 
