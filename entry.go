@@ -9,7 +9,12 @@ For entry methods that manipulate the database in some way, see entry_db.go
 package forum
 
 import (
+	"math"
 	"time"
+)
+
+const (
+	DECAY = 0.8 //Decay factor for childrens' scores
 )
 
 // Put ModifiedBy, ModifiedAuthor in a separate table. A post can only be
@@ -29,6 +34,10 @@ type Entry struct {
 	Seconds      float64 //Seconds since creation
 	Upvotes      int64
 	Downvotes    int64
+
+	//Memoization
+	childCount    int64 //For caching the count of child entries by ChildCount()
+	hasChildCount bool  //For indicating whether there is a cached value (since childCount is ambiguous: 0 for init and 0 if there are 0 children)
 
 	UserVote *Vote //A Vote representing how the current user has voted on this Entry
 
@@ -139,36 +148,77 @@ func (e *Entry) Points() int64 {
 }
 
 //Score determines sort order and can also be shown to help explain why comments are in their given order
-func (e *Entry) Score() int64 {
+func (e *Entry) Score() float64 {
 	if e == nil {
 		return 0
 	}
 
 	if e.Child() == nil {
-		return e.score()
+		return round(e.score(), 7)
 	} else {
 		//If the entry has children, all of the entry's children's (child + sibs) scores count for and against it,
 		// as do their children's scores, etc.
-		return e.score() + e.Child().recursiveScore()
+		return round(e.score()+DECAY*e.Child().recursiveScore(), 7)
 	}
 }
 
 //The actual definition of a score can rely on anything found in Entry
-func (e *Entry) score() int64 {
+func (e *Entry) score() float64 {
 	if e == nil {
 		return 0
 	}
 
-	return e.Upvotes - e.Downvotes
+	output := (float64(e.Upvotes-e.Downvotes) + 1e-3) / math.Pow(time.Since(e.Created).Seconds()/(60*60)+2, 1.8)
+
+	/*
+		//Reddit 'hot' equation.
+
+		var output, s, sign, seconds, order float64
+
+		s = float64(e.Upvotes - e.Downvotes)
+
+		order = math.Log10(math.Max(math.Abs(s), 1))
+
+		if s > 0 {
+			sign = 1
+		} else if s < 0 {
+			sign = -1
+		} else {
+			sign = 0
+		}
+
+		seconds = float64(e.Created.Unix()) - 1134028003
+
+		output = order + sign * seconds / 45000
+	*/
+
+	return output
 }
 
 //Traverses both sides of the tree starting from an Entry and sums the score
-func (e *Entry) recursiveScore() int64 {
+func (e *Entry) recursiveScore() float64 {
 	if e == nil {
 		return 0
 	}
 
-	return e.score() + e.Child().recursiveScore() + e.Sibling().recursiveScore()
+	return e.score() + DECAY*(e.Child().recursiveScore()+e.Sibling().recursiveScore())
+}
+
+func (e *Entry) ChildCount() int64 {
+	if !e.hasChildCount {
+		//Memoize childCount
+		e.childCount = e.Child().recursiveCount()
+	}
+
+	return e.childCount
+}
+
+func (e *Entry) recursiveCount() int64 {
+	if e == nil {
+		return 0
+	}
+
+	return 1 + e.Child().recursiveCount() + e.Sibling().recursiveCount()
 }
 
 //Add a child node to the current entry
@@ -220,4 +270,10 @@ func (e *Entry) addSibling(newE *Entry) {
 	newE.addSibling(newESib)
 
 	return
+}
+
+//Go doesn't offer a rounding function
+func round(value float64, digits int) float64 {
+	exp := math.Pow(10, float64(digits))
+	return math.Trunc(exp*value) / exp
 }

@@ -13,8 +13,35 @@ var queries = struct {
 	FindVote                             string //Retrieve a vote by userId and entryId
 }{
 	DescendantEntriesChildParent: `select ancestor, e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle, extract(epoch from (now()-e.created)) seconds, COALESCE(v.upvotes, 0) upvotes, COALESCE(v.downvotes, 0) downvotes, COALESCE(vu.upvote::int,0) uupvote, COALESCE(vu.downvote::int,0) udownvote 
-from entry_closures ec
-join entry e ON e.id=ec.descendant
+from entry e
+join entry_closures ec ON (
+	e.id=ec.descendant
+	AND ec.descendant IN (
+		-- Descendant is a descendant of a depth-1 descendant of the primary ancestor
+		select descendant
+		from entry_closures
+		where ancestor IN
+		(
+			-- Descendant is a depth-1 descendant of the primary ancestor
+			select descendant
+			from entry_closures
+			where ancestor=$1
+			AND depth=1
+			ORDER BY descendant DESC
+			LIMIT 2000 offset 200*0
+		)
+		OR (ancestor=descendant AND ancestor=$1)
+	) 
+	and ancestor in (
+		select descendant
+		from entry_closures
+		where ancestor=$1
+	)
+	and (
+		(ec.ancestor=$1 AND ec.descendant=$1)
+		OR ec.depth=1
+	)
+)
 join account a ON a.id=e.author_id
 left join (
 	select entry_id, SUM(upvote::int) upvotes, SUM(downvote::int) downvotes 
@@ -24,20 +51,6 @@ left join (
 left join vote vu on (
 	vu.entry_id=e.id
 	AND vu.user_id=$2
-)
-where descendant in (
-	select descendant
-	from entry_closures
-	where ancestor=$1
-)
-and ancestor in (
-	select descendant
-	from entry_closures
-	where ancestor=$1
-)
-and (
-	(ancestor=descendant and ancestor=$1)
-	OR depth=1
 )`,
 	DepthOneDescendantEntriesChildParent: `select ancestor, e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle, extract(epoch from (now()-e.created)) seconds, COALESCE(v.upvotes, 0) upvotes, COALESCE(v.downvotes, 0) downvotes, COALESCE(vu.upvote::int,0) uupvote, COALESCE(vu.downvote::int,0) udownvote 
 from entry_closures closure
