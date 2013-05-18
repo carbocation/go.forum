@@ -17,6 +17,8 @@ func makeUnsortedTree() *Entry {
 
 	x.AddChild(&Entry{Title: "Depth 1 #2", Upvotes: 3})
 	
+	x = Arrange(x)
+	
 	return x
 }
 
