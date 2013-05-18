@@ -25,29 +25,28 @@ func (e *Entry) Persist(parentId int64) error {
 	tx, err := Config.DB.Begin()
 
 	EntryCreateStmt, err := tx.Prepare(queries.EntryCreate)
-	defer EntryCreateStmt.Close()
 	if err != nil {
-		_ = tx.Rollback()
+		tx.Rollback()
 		return errors.New("Error: We had a database problem trying to create your entry.")
 	}
+	defer EntryCreateStmt.Close()
 
 	//Note: because pq handles LastInsertId oddly (or not at all?), instead of
 	//calling .Exec() then .LastInsertId, we prepare a statement that ends in
 	//`RETURNING id` and we .QueryRow().Select() the result
 	err = EntryCreateStmt.QueryRow(e.Title, e.Body, e.Url, e.AuthorId).Scan(&e.Id)
-	defer EntryCreateStmt.Close()
 	if err != nil {
 		tx.Rollback()
 		return errors.New("Error: your username or email address was already found in the database. Please choose differently.")
 	}
+	defer EntryCreateStmt.Close()
 
 	EntryClosureTableCreateStmt, err := tx.Prepare(queries.EntryClosureTableCreate)
-	defer EntryClosureTableCreateStmt.Close()
 	if err != nil {
 		tx.Rollback()
-		// return err
 		return errors.New("Error: We had a database problem trying to create ancestry information.")
 	}
+	defer EntryClosureTableCreateStmt.Close()
 
 	_, err = EntryClosureTableCreateStmt.Exec(e.Id, parentId)
 	if err != nil {
@@ -66,10 +65,10 @@ func OneEntry(id int64) (*Entry, error) {
 	var err error = nil
 
 	stmt, err := Config.DB.Prepare(queries.OneEntry)
-	defer stmt.Close()
 	if err != nil {
 		return e, err
 	}
+	defer stmt.Close()
 
 	err = stmt.QueryRow(id).Scan(&e.Id, &e.Title, &e.Body, &e.Url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle, &e.Seconds, &e.Upvotes, &e.Downvotes)
 	if err != nil {
@@ -100,20 +99,20 @@ func getEntries(root int64, flag string, user User) (*Entry, error) {
 	switch flag {
 	case "AllDescendants":
 		stmt, err = Config.DB.Prepare(queries.DescendantEntriesChildParent)
-		defer stmt.Close()
 	case "DepthOneDescendants":
 		stmt, err = Config.DB.Prepare(queries.DepthOneDescendantEntriesChildParent)
-		defer stmt.Close()
 	}
 	if err != nil {
 		return New(), err
 	}
+	defer stmt.Close()
 
 	// Query from that prepared statement
 	rows, err := stmt.Query(root, user.GetId())
 	if err != nil {
 		return New(), err
 	}
+	defer rows.Close()
 
 	// Iterate over the rows
 	for rows.Next() {
