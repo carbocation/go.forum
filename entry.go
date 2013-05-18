@@ -44,6 +44,10 @@ type Entry struct {
 	parent, child, sibling *Entry //Mandatory pointer-holders for Tree-ness
 }
 
+func New() *Entry{
+	return &Entry{UserVote: &Vote{}}
+}
+
 func (e *Entry) Child() *Entry        { return e.child }
 func (e *Entry) Sibling() *Entry      { return e.sibling }
 func (e *Entry) Parent() *Entry       { return e.parent }
@@ -115,7 +119,7 @@ func (e *Entry) getMiddle() *Entry {
 
 //Do the merge step of mergeSort, using the Less() method to sort siblings
 func merge(a, b *Entry) *Entry {
-	dummyHead := &Entry{}
+	dummyHead := New()
 	curr := dummyHead
 
 	for a != nil && b != nil {

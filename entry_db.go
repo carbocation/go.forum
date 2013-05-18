@@ -100,23 +100,24 @@ func getEntries(root int64, flag string, user User) (*Entry, error) {
 	switch flag {
 	case "AllDescendants":
 		stmt, err = Config.DB.Prepare(queries.DescendantEntriesChildParent)
+		defer stmt.Close()
 	case "DepthOneDescendants":
 		stmt, err = Config.DB.Prepare(queries.DepthOneDescendantEntriesChildParent)
+		defer stmt.Close()
 	}
-	defer stmt.Close()
 	if err != nil {
-		return &Entry{}, err
+		return New(), err
 	}
 
 	// Query from that prepared statement
 	rows, err := stmt.Query(root, user.GetId())
 	if err != nil {
-		return &Entry{}, err
+		return New(), err
 	}
 
 	// Iterate over the rows
 	for rows.Next() {
-		var e *Entry = &Entry{UserVote: &Vote{}}
+		var e *Entry = New()
 		var ancestor int64
 		err = rows.Scan(&ancestor, &e.Id, &e.Title, &e.Body, &e.Url, &e.Created, &e.AuthorId, &e.Forum, &e.AuthorHandle, &e.Seconds, &e.Upvotes, &e.Downvotes, &e.UserVote.Upvote, &e.UserVote.Downvote)
 		if err != nil {
