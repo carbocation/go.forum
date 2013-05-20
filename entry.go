@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	DECAY = 0.8 //Decay factor for childrens' scores
+	DECAY = 0.5 //Decay factor for childrens' scores
 )
 
 // Put ModifiedBy, ModifiedAuthor in a separate table. A post can only be
@@ -156,56 +156,31 @@ func (e *Entry) Score() float64 {
 	if e == nil {
 		return 0
 	}
-
-	if e.Child() == nil {
-		return round(e.score(), 7)
-	} else {
-		//If the entry has children, all of the entry's children's (child + sibs) scores count for and against it,
-		// as do their children's scores, etc.
-		return round(e.score()+DECAY*e.Child().recursiveScore(), 7)
+	
+	var childPoints float64 = 0
+	if e.Child() != nil {
+		childPoints = DECAY*e.Child().recursivePoints()
 	}
+	
+	return round(e.score(childPoints), 8)
 }
 
 //The actual definition of a score can rely on anything found in Entry
-func (e *Entry) score() float64 {
+func (e *Entry) score(childPoints float64) float64 {
 	if e == nil {
 		return 0
 	}
-
-	output := (float64(e.Upvotes-e.Downvotes) + 1e-3) / math.Pow(time.Since(e.Created).Seconds()/(60*60)+2, 1.8)
-
-	/*
-		//Reddit 'hot' equation.
-
-		var output, s, sign, seconds, order float64
-
-		s = float64(e.Upvotes - e.Downvotes)
-
-		order = math.Log10(math.Max(math.Abs(s), 1))
-
-		if s > 0 {
-			sign = 1
-		} else if s < 0 {
-			sign = -1
-		} else {
-			sign = 0
-		}
-
-		seconds = float64(e.Created.Unix()) - 1134028003
-
-		output = order + sign * seconds / 45000
-	*/
-
-	return output
+	
+	return (float64(e.Upvotes-e.Downvotes) + childPoints + 1e-3) / math.Pow(time.Since(e.Created).Seconds()/(60*60)+2, 1.8)
 }
 
-//Traverses both sides of the tree starting from an Entry and sums the score
-func (e *Entry) recursiveScore() float64 {
+//Traverses both sides of the tree starting from an Entry and sums the points
+func (e *Entry) recursivePoints() float64 {
 	if e == nil {
 		return 0
 	}
 
-	return e.score() + DECAY*(e.Child().recursiveScore()+e.Sibling().recursiveScore())
+	return float64(e.Points()) + DECAY*(e.Child().recursivePoints()+e.Sibling().recursivePoints())
 }
 
 func (e *Entry) ChildCount() int64 {
