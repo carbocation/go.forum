@@ -84,6 +84,10 @@ func DescendantEntries(root int64, user User) (*Entry, error) {
 	return getEntries(root, "AllDescendants", user)
 }
 
+func AncestorEntries(root int64, user User) (*Entry, error) {
+	return getEntries(root, "AllAncestors", user)
+}
+
 // Retrieves entries that are immediate descendants of the ancestral entry, including the ancestral entry itself
 func DepthOneDescendantEntries(root int64, user User) (*Entry, error) {
 	return getEntries(root, "DepthOneDescendants", user)
@@ -96,11 +100,29 @@ func getEntries(root int64, flag string, user User) (*Entry, error) {
 
 	var stmt *sql.Stmt
 	var err error
+
+	var getRoot func(entries map[int64]*Entry, root int64) int64           //Returns the root node
+	var buildRelationship func(ancestorId, entryId int64) map[string]int64 //Returns a parent-child relationship
+
 	switch flag {
 	case "AllDescendants":
 		stmt, err = Config.DB.Prepare(queries.DescendantEntriesChildParent)
+		getRoot = func(entries map[int64]*Entry, root int64) int64 { return root }
+		buildRelationship = func(ancestorId, entryId int64) map[string]int64 {
+			return map[string]int64{"Parent": ancestorId, "Child": entryId}
+		}
+	case "AllAncestors":
+		stmt, err = Config.DB.Prepare(queries.AncestorEntriesChildParent)
+		getRoot = func(entries map[int64]*Entry, root int64) int64 { return entries[root].Root().Id }
+		buildRelationship = func(ancestorId, entryId int64) map[string]int64 {
+			return map[string]int64{"Parent": ancestorId, "Child": entryId}
+		}
 	case "DepthOneDescendants":
 		stmt, err = Config.DB.Prepare(queries.DepthOneDescendantEntriesChildParent)
+		getRoot = func(entries map[int64]*Entry, root int64) int64 { return root }
+		buildRelationship = func(ancestorId, entryId int64) map[string]int64 {
+			return map[string]int64{"Parent": ancestorId, "Child": entryId}
+		}
 	}
 	if err != nil {
 		return New(), err
@@ -124,7 +146,7 @@ func getEntries(root int64, flag string, user User) (*Entry, error) {
 		}
 
 		entries[e.Id] = e
-		relationships = append(relationships, map[string]int64{"Parent": ancestor, "Child": e.Id})
+		relationships = append(relationships, buildRelationship(ancestor, e.Id))
 	}
 
 	//Construct the full Entry:
@@ -135,5 +157,5 @@ func getEntries(root int64, flag string, user User) (*Entry, error) {
 		entries[int64(rel["Parent"])].AddChild(entries[int64(rel["Child"])])
 	}
 
-	return Arrange(entries[root]), nil
+	return Arrange(entries[getRoot(entries, root)]), nil
 }
