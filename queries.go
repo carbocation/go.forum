@@ -5,6 +5,7 @@ package forum
 
 var queries = struct {
 	DescendantEntriesChildParent         string //Entry itself and all descendents, only pulling self- and child-parent relationships
+	AncestorEntriesChildParent           string //Entry itself and all ancestors, only pulling self- and child-parent relationships
 	DepthOneDescendantEntriesChildParent string //Entry itself and all immediate descendents, only pulling self- and child-parent relationships
 	OneEntry                             string //Retrieve one entry alone
 	EntryCreate                          string //Create a new entry
@@ -39,6 +40,46 @@ join entry_closures ec ON (
 	)
 	and (
 		(ec.ancestor=$1 AND ec.descendant=$1)
+		OR ec.depth=1
+	)
+)
+join account a ON a.id=e.author_id
+left join (
+	select entry_id, SUM(upvote::int) upvotes, SUM(downvote::int) downvotes 
+	from vote
+	group by entry_id
+) v ON v.entry_id=e.id
+left join vote vu on (
+	vu.entry_id=e.id
+	AND vu.user_id=$2
+)`,
+	AncestorEntriesChildParent: `select descendant, e.id, e.title, e.body, e.url, e.created, e.author_id, e.forum, a.handle, extract(epoch from (now()-e.created)) seconds, COALESCE(v.upvotes, 0) upvotes, COALESCE(v.downvotes, 0) downvotes, COALESCE(vu.upvote::int,0) uupvote, COALESCE(vu.downvote::int,0) udownvote 
+from entry e
+join entry_closures ec ON (
+	e.id=ec.ancestor
+	AND ec.ancestor IN (
+		-- Descendant is a descendant of a depth-1 descendant of the primary ancestor
+		select ancestor
+		from entry_closures
+		where descendant IN
+		(
+			-- Descendant is a depth-1 descendant of the primary ancestor
+			select ancestor
+			from entry_closures
+			where descendant=$1
+			AND depth=1
+			ORDER BY ancestor DESC
+			LIMIT 2000 offset 200*0
+		)
+		OR (ancestor=descendant AND ancestor=$1)
+	) 
+	and descendant in (
+		select ancestor
+		from entry_closures
+		where descendant=$1
+	)
+	and (
+		(ec.descendant=$1 AND ec.ancestor=$1)
 		OR ec.depth=1
 	)
 )

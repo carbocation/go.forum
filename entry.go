@@ -34,6 +34,7 @@ type Entry struct {
 	Seconds      float64 //Seconds since creation
 	Upvotes      int64
 	Downvotes    int64
+	ParentId     int64 //ID of the parent of this post, if any
 
 	//Memoization
 	childCount    int64 //For caching the count of child entries by ChildCount()
@@ -44,8 +45,17 @@ type Entry struct {
 	parent, child, sibling *Entry //Mandatory pointer-holders for Tree-ness
 }
 
-func New() *Entry{
+func New() *Entry {
 	return &Entry{UserVote: &Vote{}}
+}
+
+//Returns the root of a tree
+func (e *Entry) Root() *Entry {
+	if e.Parent() == nil {
+		return e
+	}
+	
+	return e.Parent()
 }
 
 func (e *Entry) Child() *Entry        { return e.child }
@@ -156,12 +166,12 @@ func (e *Entry) Score() float64 {
 	if e == nil {
 		return 0
 	}
-	
+
 	var childPoints float64 = 0
 	if e.Child() != nil {
-		childPoints = DECAY*e.Child().recursivePoints()
+		childPoints = DECAY * e.Child().recursivePoints()
 	}
-	
+
 	return round(e.score(childPoints), 8)
 }
 
@@ -170,7 +180,7 @@ func (e *Entry) score(childPoints float64) float64 {
 	if e == nil {
 		return 0
 	}
-	
+
 	return (float64(e.Upvotes-e.Downvotes) + childPoints + 1e-3) / math.Pow(time.Since(e.Created).Seconds()/(60*60)+2, 1.8)
 }
 
