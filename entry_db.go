@@ -37,7 +37,7 @@ func (e *Entry) Persist(parentId int64) error {
 	err = EntryCreateStmt.QueryRow(e.Title, e.Body, e.Url, e.AuthorId).Scan(&e.Id)
 	if err != nil {
 		tx.Rollback()
-		return errors.New("Error: your username or email address was already found in the database. Please choose differently.")
+		return errors.New("Error: there was an error when trying to persist the entry to the database; it was not saved.")
 	}
 	defer EntryCreateStmt.Close()
 
